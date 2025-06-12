@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify #
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from datetime import datetime, timezone
@@ -32,6 +32,7 @@ def extract_json_from_ai(ai_response):
         print("Failed to parse AI response as JSON:", e)
         print("RAW OUTPUT:", ai_response)
         return None
+
 # --- Robust HTTP Session ---
 session = requests.Session()
 retry = Retry(total=3, backoff_factor=0.3)
@@ -131,7 +132,6 @@ def call_groq_ai(prompt):
         if response.status_code == 200:
             return response.json()['choices'][0]['message']['content']
         else:
-            print(f"Groq API error: {response.status_code} - {response.text}")
             return f"AI analysis unavailable (status {response.status_code})"
     except Exception as e:
         print(f"Error calling Groq AI: {e}")
@@ -161,19 +161,6 @@ def analyze_sentiment(text):
     except Exception as e:
         print(f"AI sentiment analysis failed: {e}")
         return analyze_sentiment_fallback(text)
-
-def analyze_sentiment_fallback(text):
-    positive_words = ['good', 'happy', 'satisfied', 'excellent', 'great', 'wonderful', 'thank you', 'pleased']
-    negative_words = ['bad', 'angry', 'frustrated', 'terrible', 'awful', 'disappointed', 'complaint', 'problem']
-    text_lower = text.lower()
-    positive_count = sum(1 for word in positive_words if word in text_lower)
-    negative_count = sum(1 for word in negative_words if word in text_lower)
-    if positive_count > negative_count:
-        return 0.6
-    elif negative_count > positive_count:
-        return -0.6
-    else:
-        return 0.0
 
 # --- Routes ---
 @app.route('/')
@@ -324,6 +311,33 @@ def customer_analytics():
         'average_balance': round(avg_balance, 2),
         'generated_at': datetime.now(timezone.utc).isoformat()
     })
+
+@app.route('/api/analytics/performance', methods=['GET'])
+def performance_analytics():
+    total_recommendations = Recommendation.query.count()
+    pending_recommendations = Recommendation.query.filter_by(status='Pending').count()
+    return jsonify({
+        'total_recommendations': total_recommendations,
+        'pending_recommendations': pending_recommendations,
+        'completion_rate': round((total_recommendations - pending_recommendations) / max(total_recommendations, 1) * 100, 2),
+        'generated_at': datetime.now(timezone.utc).isoformat()
+    })
+
+# --- Sentiment Test Endpoint ---
+@app.route('/api/test/sentiment', methods=['POST'])
+def test_sentiment_endpoint():
+    data = request.get_json()
+    text = data.get('text', '')
+    if not text:
+        return jsonify({'error': 'Text is required'}), 400
+    sentiment_score = analyze_sentiment(text)
+    return jsonify({
+        'text': text,
+        'sentiment_score': sentiment_score,
+        'sentiment_label': 'Positive' if sentiment_score > 0.1 else 'Negative' if sentiment_score < -0.1 else 'Neutral',
+        'analysis_timestamp': datetime.now(timezone.utc).isoformat()
+    })
+
 # --- DB Initialization with Sample Data ---
 def init_db():
     with app.app_context():
