@@ -32,17 +32,6 @@ def extract_json_from_ai(ai_response):
         print("Failed to parse AI response as JSON:", e)
         print("RAW OUTPUT:", ai_response)
         return None
-# --- Network Fixes ---
-original_getaddrinfo = socket.getaddrinfo
-
-def custom_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-    if host in ['localhost', '127.0.0.1', '0.0.0.0']:
-        return original_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
-    else:
-        return original_getaddrinfo(host, port, family, type, proto, flags)
-
-socket.getaddrinfo = custom_getaddrinfo
-
 # --- Robust HTTP Session ---
 session = requests.Session()
 retry = Retry(total=3, backoff_factor=0.3)
@@ -335,33 +324,6 @@ def customer_analytics():
         'average_balance': round(avg_balance, 2),
         'generated_at': datetime.now(timezone.utc).isoformat()
     })
-
-@app.route('/api/analytics/performance', methods=['GET'])
-def performance_analytics():
-    total_recommendations = Recommendation.query.count()
-    pending_recommendations = Recommendation.query.filter_by(status='Pending').count()
-    return jsonify({
-        'total_recommendations': total_recommendations,
-        'pending_recommendations': pending_recommendations,
-        'completion_rate': round((total_recommendations - pending_recommendations) / max(total_recommendations, 1) * 100, 2),
-        'generated_at': datetime.now(timezone.utc).isoformat()
-    })
-
-# --- Sentiment Test Endpoint ---
-@app.route('/api/test/sentiment', methods=['POST'])
-def test_sentiment_endpoint():
-    data = request.get_json()
-    text = data.get('text', '')
-    if not text:
-        return jsonify({'error': 'Text is required'}), 400
-    sentiment_score = analyze_sentiment(text)
-    return jsonify({
-        'text': text,
-        'sentiment_score': sentiment_score,
-        'sentiment_label': 'Positive' if sentiment_score > 0.1 else 'Negative' if sentiment_score < -0.1 else 'Neutral',
-        'analysis_timestamp': datetime.now(timezone.utc).isoformat()
-    })
-
 # --- DB Initialization with Sample Data ---
 def init_db():
     with app.app_context():
